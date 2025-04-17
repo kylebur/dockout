@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Riverside Dock Uninstall Planner</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <style>
+        /* Basic styling for the application - Copied from Deploy Planner */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+            line-height: 1.6;
+            padding: 20px;
+            background-color: #f4f7f9; /* Light background */
+            color: #333;
+            margin: 0;
+        }
+        .container {
+            max-width: 950px; /* Slightly wider for better chart display */
+            margin: 20px auto; /* Add top/bottom margin */
+            background: #ffffff; /* White background for content */
+            padding: 25px 30px; /* Adjust padding */
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08); /* Softer shadow */
+            border: 1px solid #e0e0e0; /* Subtle border */
+        }
+        h1, h2 {
+            color: #1a5f9a; /* Darker blue */
+            border-bottom: 2px solid #eef2f5; /* Lighter border */
+            padding-bottom: 8px;
+            margin-top: 0; /* Remove default top margin for first h1 */
+            margin-bottom: 20px; /* Increase spacing below headers */
+        }
+        h1 {
+            text-align: center; /* Center main title */
+            margin-bottom: 20px; /* Reduced margin */
+        }
+        /* Styling for the date input area */
+        #dateSelectionContainer {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 10px;
+            background-color: #eef2f5;
+            border-radius: 6px;
+        }
+        #dateSelectionContainer label {
+            margin-right: 10px;
+            font-weight: 500;
+            color: #333;
+        }
+        #startDateInput {
+            padding: 8px 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 1em;
+        }
+        #chartContainer {
+            margin-bottom: 35px; /* More space after chart */
+            position: relative; /* Needed for loader and canvas positioning */
+            height: 33vh; /* Set height to 1/3rd of the viewport height */
+            background-color: #fdfdfd; /* Very light background for chart area */
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #e8e8e8;
+        }
+        /* Ensure canvas scales within the container */
+        #chartContainer canvas {
+             max-width: 100%;
+             max-height: 100%;
+        }
+        #suitableDates ul {
+            list-style: none;
+            padding: 0;
+        }
+        #suitableDates li {
+            background-color: #e8f4fd; /* Lighter blue background */
+            margin-bottom: 12px; /* More spacing */
+            padding: 12px 18px;
+            border-radius: 6px;
+            border: 1px solid #c1dff7; /* Slightly darker border */
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.2s ease; /* Smooth hover effect */
+        }
+        #suitableDates li:hover {
+            background-color: #d6ebfa; /* Slightly darker on hover */
+        }
+        #suitableDates button {
+            padding: 6px 12px;
+            cursor: pointer;
+            background-color: #007bff; /* Standard blue */
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 0.9em;
+            font-weight: 500;
+            transition: background-color 0.2s ease, transform 0.1s ease; /* Add transitions */
+        }
+        #suitableDates button:hover {
+            background-color: #0056b3; /* Darker blue on hover */
+            transform: translateY(-1px); /* Slight lift effect */
+        }
+         #suitableDates button:active {
+             transform: translateY(0px); /* Press effect */
+         }
+        #scheduleOutput {
+            margin-top: 25px;
+            background-color: #f9f9f9; /* Light grey background */
+            padding: 20px;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0; /* Consistent border */
+        }
+        #scheduleOutput h3 {
+            margin-top: 0;
+            color: #444; /* Dark grey header */
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 8px;
+            margin-bottom: 15px;
+        }
+        /* Style for the calendar download link */
+        #calendarLinkContainer {
+            margin-bottom: 15px; /* Space below the link */
+            text-align: left; /* Align link to the left */
+        }
+        #calendarLink {
+            display: inline-block;
+            padding: 8px 15px;
+            background-color: #28a745; /* Green color */
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 0.95em;
+            font-weight: 500;
+            transition: background-color 0.2s ease;
+        }
+        #calendarLink:hover {
+            background-color: #218838; /* Darker green on hover */
+        }
+        #scheduleOutput ul {
+            list-style: none;
+            padding: 0;
+        }
+        #scheduleOutput li {
+            padding: 8px 5px; /* Add some horizontal padding */
+            border-bottom: 1px dashed #dcdcdc; /* Dashed separator */
+            display: flex; /* Use flexbox for alignment */
+            align-items: center;
+        }
+        #scheduleOutput li:last-child {
+            border-bottom: none;
+        }
+        #scheduleOutput strong {
+            display: inline-block;
+            min-width: 210px; /* Wider width for formatted time */
+            color: #0056b3; /* Match button color */
+            font-weight: 500; /* Slightly bolder */
+            margin-right: 10px; /* Space between time and action */
+        }
+        /* Status messages (loading, error, info) */
+        .status-message {
+            text-align: center;
+            padding: 25px;
+            margin: 20px 0;
+            font-size: 1.1em;
+            color: #555;
+            background-color: #f0f0f0;
+            border-radius: 6px;
+            border: 1px solid #dcdcdc;
+        }
+        .status-message.error {
+            color: #a94442; /* Red for errors */
+            background-color: #f2dede;
+            border-color: #ebccd1;
+        }
+        .status-message.info {
+             color: #31708f; /* Blue for info */
+             background-color: #d9edf7;
+             border-color: #bce8f1;
+        }
+        /* Simple CSS loader */
+        .loader::after {
+            content: ' .';
+            animation: dots 1.2s steps(5, end) infinite;
+        }
+        @keyframes dots {
+            0%, 20% { color: rgba(0,0,0,0); text-shadow: .25em 0 0 rgba(0,0,0,0), .5em 0 0 rgba(0,0,0,0);}
+            40% { color: #555; text-shadow: .25em 0 0 rgba(0,0,0,0), .5em 0 0 rgba(0,0,0,0);}
+            60% { text-shadow: .25em 0 0 #555, .5em 0 0 rgba(0,0,0,0);}
+            80%, 100% { text-shadow: .25em 0 0 #555, .5em 0 0 #555;}
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Riverside Dock Uninstall Planner</h1>
+
+        <div id="dateSelectionContainer">
+            <label for="startDateInput">Select Start Date (Fall):</label>
+            <input type="date" id="startDateInput">
+        </div>
+
+        <div id="status" class="status-message loader">Loading initial tide data...</div>
+
+        <div id="chartContainer" style="display: none;">
+            <h2>Tide Predictions (Next 30 Days)</h2>
+            <canvas id="tideChart"></canvas>
+        </div>
+
+        <div id="suitableDates" style="display: none;">
+             <h2 id="suitableDatesTitle">Suitable High Tides</h2>
+            <ul id="datesList"></ul>
+        </div>
+
+        <div id="scheduleOutput" style="display: none;">
+            <div id="calendarLinkContainer"></div>
+            <ul id="scheduleList"></ul>
+        </div>
+    </div>
+
+    <script>
+        // --- Configuration ---
+        const TIDE_STATION_ID = '8415709';
+        const MIN_TIDE_HEIGHT = 9.8; // Minimum high tide height in feet (Same as deploy)
+        const START_HOUR = 8;        // Suitable window start hour (Same as deploy)
+        const END_HOUR = 16;       // Suitable window end hour (Same as deploy)
+        const DAYS_TO_FETCH = 30;
+        const EVENT_DURATION_MINUTES = 15; // Duration for calendar events
+
+        // Schedule definition for Fall Uninstall
+        const relativeSchedule = [
+            { label: "Scout landing zone for obstacles. Charge battery", offset: "-1d" },
+            { label: "High tide 11.8’ rope connected to picnic table 205’ away", offset: "0ms" },
+            { label: "Put Motor on boat", offset: "5m" },
+            { label: "Unpin float side", offset: "48m" },
+            { label: "Gangway should be halfway across", offset: "1h 4m" },
+            { label: "Gangway should be centered", offset: "1h 24m" },
+            { label: "Unpinned land side", offset: "1h 28m" },
+            { label: "Untied", offset: "1h 31m" },
+            { label: "Travel down river", offset: "1h 33m" },
+            { label: "Land", offset: "1h 46m" },
+            { label: "Boat detach and dragged toward shore. Tools loaded on trailer", offset: "2h 3m" },
+            { label: "Boat loaded on trailer", offset: "2h 26m" },
+            { label: "Nighttime Adjust rope tension on float", offset: "12h 25m" },
+            { label: "Daytime Adjust rope tension on float", offset: "1d 50m" }
+        ];
+
+        // --- DOM Elements ---
+        const statusDiv = document.getElementById('status');
+        const startDateInput = document.getElementById('startDateInput');
+        const chartContainer = document.getElementById('chartContainer');
+        const suitableDatesDiv = document.getElementById('suitableDates');
+        const suitableDatesTitle = document.getElementById('suitableDatesTitle');
+        const datesList = document.getElementById('datesList');
+        const scheduleOutputDiv = document.getElementById('scheduleOutput');
+        const calendarLinkContainer = document.getElementById('calendarLinkContainer');
+        const scheduleList = document.getElementById('scheduleList');
+        const chartCanvas = document.getElementById('tideChart');
+        let tideChart = null;
+        let currentCalendarUrl = null;
+
+        // --- Helper Functions (Formatting, Parsing, etc.) ---
+        function formatDateYYYYMMDD(date) { const y = date.getFullYear(), m = String(date.getMonth() + 1).padStart(2, '0'), d = String(date.getDate()).padStart(2, '0'); return `${y}${m}${d}`; }
+        function formatDateYYYY_MM_DD(date) { const y = date.getFullYear(), m = String(date.getMonth() + 1).padStart(2, '0'), d = String(date.getDate()).padStart(2, '0'); return `${y}-${m}-${d}`; }
+        function formatICSDate(date) { const y = date.getUTCFullYear(), m = String(date.getUTCMonth() + 1).padStart(2, '0'), d = String(date.getUTCDate()).padStart(2, '0'), h = String(date.getUTCHours()).padStart(2, '0'), min = String(date.getUTCMinutes()).padStart(2, '0'), s = String(date.getUTCSeconds()).padStart(2, '0'); return `${y}${m}${d}T${h}${min}${s}Z`; }
+        function formatDisplayDateTime(date) { return new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }).format(date); }
+        function parseRelativeOffset(offsetString) { let totalOffset = 0; const regex = /([+-]?\d+)\s*([dhms])/g; let match; while ((match = regex.exec(offsetString)) !== null) { const value = parseInt(match[1], 10); const unit = match[2]; switch (unit) { case 'd': totalOffset += value * 24 * 60 * 60 * 1000; break; case 'h': totalOffset += value * 60 * 60 * 1000; break; case 'm': totalOffset += value * 60 * 1000; break; case 's': totalOffset += value * (offsetString === "0ms" ? 1 : 1000); break; } } return totalOffset; }
+
+        // --- Core Application Logic ---
+        async function fetchTideData(startDateStr, endDateStr) {
+            const apiUrl = `https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?` +
+                           `begin_date=${startDateStr}&end_date=${endDateStr}&station=${TIDE_STATION_ID}` +
+                           `&product=predictions&datum=MLLW&units=english&time_zone=lst_ldt&format=json&interval=hilo`;
+            console.log("Fetching NOAA Tide Data from URL:", apiUrl);
+            try {
+                const response = await fetch(apiUrl);
+                if (!response.ok) throw new Error(`HTTP error! Status: ${response.status} ${response.statusText}`);
+                const data = await response.json();
+                if (!data || (!data.predictions && data.error)) { const errorMessage = data.error?.message || "Unknown API error."; throw new Error(`API Error: ${errorMessage}`); }
+                if (!data || !data.predictions) { throw new Error("Invalid data format received from NOAA API."); }
+                console.log(`Successfully fetched ${data.predictions.length} predictions.`);
+                return data.predictions;
+            } catch (error) {
+                console.error("Error fetching or processing tide data:", error);
+                statusDiv.textContent = `Error fetching tide data: ${error.message}. Check console.`;
+                statusDiv.className = 'status-message error'; statusDiv.style.display = 'block';
+                chartContainer.style.display = 'none'; suitableDatesDiv.style.display = 'none'; scheduleOutputDiv.style.display = 'none';
+                return null;
+            }
+        }
+
+        function findSuitableTides(predictions) {
+            const suitableTides = []; if (!Array.isArray(predictions)) return suitableTides;
+            predictions.forEach(p => { if (p.type === 'H') { const height = parseFloat(p.v); const date = new Date(p.t); if (!isNaN(height) && !isNaN(date.getTime())) { const hour = date.getHours(); if (height > MIN_TIDE_HEIGHT && hour >= START_HOUR && hour < END_HOUR) { suitableTides.push({ date: date, height: height }); } } else { console.warn("Skipping prediction due to invalid data:", p); } } });
+            console.log(`Found ${suitableTides.length} suitable tides.`); return suitableTides;
+        }
+
+        function calculateSchedule(highTideDate) {
+            const schedule = []; const highTideMillis = highTideDate.getTime();
+            relativeSchedule.forEach(item => { const offsetMillis = parseRelativeOffset(item.offset); schedule.push({ label: item.label, time: new Date(highTideMillis + offsetMillis) }); });
+            schedule.sort((a, b) => a.time - b.time); return schedule;
+        }
+
+        function generateICSContent(schedule, highTideDate) {
+            let icsString = `BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//YourApp//RiversideDockUninstall//EN\n`;
+            const timestamp = formatICSDate(new Date());
+            schedule.forEach((item, index) => {
+                const startTime = item.time; const endTime = new Date(startTime.getTime() + EVENT_DURATION_MINUTES * 60000);
+                const uid = `dockuninstallevent-${highTideDate.toISOString()}-${index}@example.com`;
+                icsString += `BEGIN:VEVENT\nUID:${uid}\nDTSTAMP:${timestamp}\nDTSTART:${formatICSDate(startTime)}\nDTEND:${formatICSDate(endTime)}\nSUMMARY:${item.label.replace(/,/g, '\\,')}\nEND:VEVENT\n`;
+            });
+            icsString += `END:VCALENDAR`; return icsString;
+        }
+
+        function createCalendarLink(icsContent, highTideDate) {
+             if (currentCalendarUrl) { URL.revokeObjectURL(currentCalendarUrl); }
+            calendarLinkContainer.innerHTML = ''; const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+            currentCalendarUrl = URL.createObjectURL(blob); const link = document.createElement('a'); link.id = 'calendarLink'; link.href = currentCalendarUrl;
+            const dateString = `${highTideDate.getFullYear()}${String(highTideDate.getMonth() + 1).padStart(2, '0')}${String(highTideDate.getDate()).padStart(2, '0')}`;
+            link.download = `dock_uninstall_schedule_${dateString}.ics`; link.textContent = 'Add Uninstall Schedule to Calendar (.ics)';
+            calendarLinkContainer.appendChild(link); calendarLinkContainer.style.display = 'block';
+        }
+
+        function displaySchedule(schedule, highTideDate) {
+            scheduleList.innerHTML = ''; let heading = scheduleOutputDiv.querySelector('h3');
+            if (!heading) { heading = document.createElement('h3'); scheduleOutputDiv.insertBefore(heading, calendarLinkContainer); }
+            heading.textContent = `Calculated Uninstall Schedule for High Tide on ${formatDisplayDateTime(highTideDate)}`;
+            const icsContent = generateICSContent(schedule, highTideDate); createCalendarLink(icsContent, highTideDate);
+            schedule.forEach(item => {
+                const listItem = document.createElement('li'); const isTarget = item.label.toLowerCase().includes("high tide");
+                listItem.innerHTML = `<strong>${formatDisplayDateTime(item.time)}:</strong> ${item.label}`;
+                if (isTarget) { listItem.style.fontWeight = 'bold'; listItem.style.backgroundColor = 'rgba(0,123,255,0.05)'; }
+                scheduleList.appendChild(listItem);
+            });
+            scheduleOutputDiv.style.display = 'block'; heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function displayChart(predictions) {
+            chartContainer.innerHTML = '<canvas id="tideChart"></canvas>'; const canvas = document.getElementById('tideChart');
+            if (!canvas) { console.error("Canvas element not found after reset."); return; } const ctx = canvas.getContext('2d');
+            if (!Array.isArray(predictions) || predictions.length === 0) { chartContainer.innerHTML = '<p class="status-message info">No tide prediction data available for the selected period.</p>'; chartContainer.style.display = 'block'; return; }
+            const chartData = predictions.map(p => ({ x: new Date(p.t).getTime(), y: parseFloat(p.v), type: p.type }));
+            if (tideChart) { tideChart.destroy(); }
+            tideChart = new Chart(ctx, {
+                type: 'line', data: { datasets: [{ label: 'Tide Height (ft MLLW)', data: chartData, borderColor: 'rgb(54, 162, 235)', backgroundColor: 'rgba(54, 162, 235, 0.1)', borderWidth: 1.5, tension: 0.1, pointRadius: 3, pointHoverRadius: 6, fill: true }] },
+                options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'time', time: { unit: 'day', tooltipFormat: 'PPpp', displayFormats: { day: 'MMM d' } }, title: { display: true, text: 'Date' }, grid: { display: false } }, y: { beginAtZero: false, title: { display: true, text: 'Tide Height (ft)' }, grid: { color: '#eef2f5' } } }, plugins: { tooltip: { callbacks: { title: (tooltipItems) => tooltipItems[0] ? formatDisplayDateTime(new Date(tooltipItems[0].parsed.x)) : '', label: (context) => { let label = context.dataset.label || ''; if (label) { label += ': '; } const dataPoint = context.raw; if (dataPoint.y !== null) { label += dataPoint.y.toFixed(2) + ' ft'; if (dataPoint.type) { label += ` (${dataPoint.type === 'H' ? 'High' : 'Low'} Tide)`; } } return label; } } }, legend: { display: false } }, interaction: { mode: 'index', intersect: false } }
+            });
+            chartContainer.style.display = 'block';
+        }
+
+        async function fetchAndDisplayTides(startDate) {
+            datesList.innerHTML = ''; scheduleList.innerHTML = ''; calendarLinkContainer.innerHTML = ''; suitableDatesDiv.style.display = 'none'; scheduleOutputDiv.style.display = 'none';
+            if (tideChart) { tideChart.destroy(); tideChart = null; chartContainer.innerHTML = '<canvas id="tideChart"></canvas>'; } chartContainer.style.display = 'none';
+            statusDiv.textContent = `Fetching tide data starting ${formatDateYYYY_MM_DD(startDate)}...`; statusDiv.className = 'status-message loader'; statusDiv.style.display = 'block';
+            const endDate = new Date(startDate); endDate.setDate(startDate.getDate() + DAYS_TO_FETCH); const startStr = formatDateYYYYMMDD(startDate); const endStr = formatDateYYYYMMDD(endDate);
+            const predictions = await fetchTideData(startStr, endStr);
+            if (predictions) {
+                statusDiv.style.display = 'none'; displayChart(predictions);
+                const suitableTides = findSuitableTides(predictions);
+                suitableDatesTitle.textContent = `Suitable High Tides (> ${MIN_TIDE_HEIGHT} ft, ${START_HOUR} AM - ${END_HOUR === 12 ? 12 : END_HOUR % 12} PM)`;
+                if (suitableTides.length > 0) {
+                    suitableTides.forEach(tide => {
+                        const listItem = document.createElement('li'); const dateString = formatDisplayDateTime(tide.date);
+                        listItem.innerHTML = `<span>${dateString} - <strong>${tide.height.toFixed(2)} ft</strong></span> <button data-tide-time="${tide.date.toISOString()}">Generate Uninstall Schedule</button>`;
+                        datesList.appendChild(listItem);
+                    });
+                    datesList.querySelectorAll('button').forEach(button => {
+                        button.addEventListener('click', (event) => {
+                            const tideTimeString = event.target.getAttribute('data-tide-time'); const tideDate = new Date(tideTimeString);
+                            const calculatedSchedule = calculateSchedule(tideDate); displaySchedule(calculatedSchedule, tideDate);
+                        });
+                    });
+                    suitableDatesDiv.style.display = 'block';
+                } else {
+                    suitableDatesDiv.innerHTML = `<p class="status-message info">No suitable high tides (> ${MIN_TIDE_HEIGHT} ft between ${START_HOUR} AM and ${END_HOUR === 12 ? 12 : END_HOUR % 12} PM) found starting ${formatDateYYYY_MM_DD(startDate)}.</p>`;
+                    suitableDatesDiv.style.display = 'block';
+                }
+            }
+        }
+
+        // --- Initialization ---
+        window.onload = () => {
+            const today = new Date();
+            // *** UPDATED: Suggest November 1st of current year as default start date ***
+            const fallStartDate = new Date(today.getFullYear(), 10, 1); // Month is 0-indexed (10 = November)
+            startDateInput.value = formatDateYYYY_MM_DD(fallStartDate);
+
+            startDateInput.addEventListener('change', (e) => {
+                const dateString = e.target.value; const selectedDate = new Date(dateString + 'T00:00:00');
+                if (!isNaN(selectedDate.getTime())) { fetchAndDisplayTides(selectedDate); }
+                else { statusDiv.textContent = 'Invalid date selected.'; statusDiv.className = 'status-message error'; statusDiv.style.display = 'block'; }
+            });
+
+            fetchAndDisplayTides(fallStartDate);
+        };
+
+    </script>
+</body>
+</html>
+
